@@ -13,9 +13,8 @@ import requests
 import threading
 import shutil
 
-
 import logging
-from weibo_conf import UID,THREAD,USER_ID,USER_PWD
+from weibo_conf import UID, THREAD, USER_ID, USER_PWD
 #logging.basicConfig(level=logging.DEBUG)
 
 
@@ -30,6 +29,7 @@ ALBUM_ID = -1
 mylock = threading.RLock()
 retry_list = set()
 
+
 def encrypt_passwd(passwd, pubkey, servertime, nonce):
     key = rsa.PublicKey(int(pubkey, 16), int('10001', 16))
     message = str(servertime) + '\t' + str(nonce) + '\n' + str(passwd)
@@ -38,7 +38,6 @@ def encrypt_passwd(passwd, pubkey, servertime, nonce):
 
 
 def wblogin(username, password):
-    global THREAD
     resp = session.get(
         'http://login.sina.com.cn/sso/prelogin.php?'
         'entry=sso&callback=sinaSSOController.preloginCallBack&'
@@ -49,7 +48,7 @@ def wblogin(username, password):
     pre_login_str = re.match(r'[^{]+({.+?})', resp.content).group(1)
     pre_login = json.loads(pre_login_str)
 
- #   pre_login = json.loads(pre_login_str)
+    #   pre_login = json.loads(pre_login_str)
     data = {
         'entry': 'weibo',
         'gateway': 1,
@@ -66,7 +65,7 @@ def wblogin(username, password):
         'pwencode': 'rsa2',
         'sp': encrypt_passwd(password, pre_login['pubkey'],
                              pre_login['servertime'], pre_login['nonce']),
-        'rsakv' : pre_login['rsakv'],
+        'rsakv': pre_login['rsakv'],
         'encoding': 'UTF-8',
         'prelt': '115',
         'url': 'http://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.si'
@@ -85,10 +84,11 @@ def wblogin(username, password):
     #return json.loads(login_str)
     for uid in UID:
         get_album_id(uid)
-        picname_list= []
+        picname_list = []
         page = 1
         while True:
-            des_url = 'http://photo.weibo.com/photos/get_all?uid=%s&album_id=%s&count=30&page=%s&type=3' % (uid,ALBUM_ID,page)
+            des_url = 'http://photo.weibo.com/photos/get_all?uid=%s&album_id=%s&count=30&page=%s&type=3' % (
+                uid, ALBUM_ID, page)
             resp = session.get(des_url)
             rep_data = resp.json()['data']['photo_list']
             if len(rep_data) == 0:
@@ -108,7 +108,7 @@ def wblogin(username, password):
         if id_list == None:
             pass
         else:
-            id_list = [ ids.strip() for ids in id_list]
+            id_list = [ids.strip() for ids in id_list]
             picname_list = set(picname_list) - set(id_list)
             picname_list = list(picname_list)
 
@@ -122,22 +122,22 @@ def wblogin(username, password):
         thread = []
         times = len(picname_list_div)
         for i in range(times):
-            thread.append(dojob(download,picname_list_div,sort_dir,i))
+            thread.append(dojob(download, picname_list_div, sort_dir, i))
         for each in thread:
             each.start()
         for each in thread:
             each.join()
         done_list = list(set(picname_list) - retry_list)
-        set_idlist(sort_dir,list(done_list))
+        set_idlist(sort_dir, list(done_list))
 
         while len(retry_list) != 0:
             print 'Now retrying download the [ %s ] failed task!!!' % len(retry_list)
             threads = []
             # 分多线程进行重试
             picname_list_div = []
-            picname_list_div =div_list(retry_list)
+            picname_list_div = div_list(retry_list)
             for i in range(len(picname_list_div)):
-                t = threading.Thread(target=retry_download,args=(list(picname_list_div[i]),sort_dir))
+                t = threading.Thread(target=retry_download, args=(list(picname_list_div[i]), sort_dir))
                 threads.append(t)
 
             for i in threads:
@@ -151,7 +151,7 @@ def wblogin(username, password):
 
 
 class dojob(threading.Thread):
-    def __init__(self,func,picname_list,sort_dir,index):
+    def __init__(self, func, picname_list, sort_dir, index):
         threading.Thread.__init__(self)
         self.func = func
         self.picname_list = picname_list
@@ -159,7 +159,8 @@ class dojob(threading.Thread):
         self.index = index
 
     def run(self):
-        self.func(self.picname_list,self.sort_dir,self.index)
+        self.func(self.picname_list, self.sort_dir, self.index)
+
 
 def div_list(picname_list):
     '''divide the list into small lists, if sum < THREAD then divide by sum
@@ -169,16 +170,17 @@ def div_list(picname_list):
     if sum < THREAD:
         THREAD = sum
     size = len(picname_list) / int(THREAD) + 1
-    l = [picname_list[i:i+int(size)] for i in range(0,len(picname_list),size)]
+    l = [picname_list[i:i + int(size)] for i in range(0, len(picname_list), size)]
     return l
 
-def download(picname_list,sort_dir,index):
+
+def download(picname_list, sort_dir, index):
     i = 0
     for picname in picname_list[index]:
         download_url = 'http://ww3.sinaimg.cn/large/%s.jpg' % picname
         try:
-            urllib.urlretrieve(download_url, './' + sort_dir + '/' + picname + '.jpg')
-        except :
+            urllib.urlretrieve(download_url, './' + sort_dir + '/' + picname)
+        except:
             mylock.acquire()
             retry_list.add(picname)
             mylock.release()
@@ -186,7 +188,8 @@ def download(picname_list,sort_dir,index):
             continue
         print 'Download ' + picname + ' successed.'
 
-def retry_download(picname_list,sort_dir):
+
+def retry_download(picname_list, sort_dir):
     '''retry to download the failed task untile all the image has been dowload successfuly.
     '''
     for picname in picname_list:
@@ -194,17 +197,18 @@ def retry_download(picname_list,sort_dir):
         try:
             urllib.urlretrieve(download_url, './' + sort_dir + '/' + picname + '.jpg')
             retry_list.remove(picname)
-        except :
+        except:
             sys.stderr.write('%s has download failed, add to retry queue!' % picname)
             continue
         print 'Download ' + picname + ' successed.'
 
+
 def get_idlist(sort_dir):
     ''' get the pic_id which has already downloaded.
     '''
-    filename = os.path.join(sort_dir,'id_list.log')
+    filename = os.path.join(sort_dir, 'id_list.log')
     if os.path.exists(filename):
-        f = open(filename,'r')
+        f = open(filename, 'r')
         id_list = f.readlines()
         f.close()
     else:
@@ -212,23 +216,26 @@ def get_idlist(sort_dir):
 
     return id_list
 
-def set_idlist(sort_dir,ids):
+
+def set_idlist(sort_dir, ids):
     ''' store the pic_id into id_list.log
     '''
-    filename = os.path.join(sort_dir,'id_list.log')
-    f = open(filename,'a')
-    ids = [ herf + '\n' for herf in ids ]
+    filename = os.path.join(sort_dir, 'id_list.log')
+    f = open(filename, 'a')
+    ids = [herf + '\n' for herf in ids]
 
     f.writelines(ids)
     f.close()
 
+
 def get_album_id(UID):
-    global ALBUM_ID
     url = 'http://photo.weibo.com/albums/get_all?uid=%s&page=1&count=20' % UID
     rep = session.get(url)
     ALBUM_ID = rep.json()['data']['album_list'][0]['album_id']
-    print ALBUM_ID 
+    print ALBUM_ID
+
 
 if __name__ == '__main__':
     from pprint import pprint
-    pprint(wblogin(USER_ID,USER_PWD))
+
+    pprint(wblogin(USER_ID, USER_PWD))
